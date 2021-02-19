@@ -1,0 +1,15 @@
+hasura.example.com {
+  bind {$ADDRESS}
+  proxy / hasura:5000 {
+    transparent
+  }
+  tls email@example.com
+}
+
+gotrue.example.com {
+  bind {$ADDRESS}
+  proxy / gotrue:9999 {
+    transparent
+  }
+  tls email@example.com
+}
