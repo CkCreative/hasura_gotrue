@@ -1,6 +1,6 @@
 # Hasura + GoTrue = ❤️
 
-This is a slightly modified version of gotrue that includes Hasura. Including `docker-compose.yaml` file to deploy it together with gotrue.
+This is a slightly extended version of Netlify's GoTrue. It includes a `docker-compose.yaml` file to deploy it together with Hasura. This set up uses two databases, PostgreSQL for Hasura and MariaDB for GoTrue. Have fun!
 
 ## Background
 
