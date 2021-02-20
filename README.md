@@ -1,14 +1,14 @@
 # Hasura + GoTrue = ❤️
 
-This is a slightly extended version of Netlify's GoTrue. It includes a `docker-compose.yaml` file to deploy it together with Hasura. This set up uses two databases, PostgreSQL for Hasura and MariaDB for GoTrue. Have fun!
+This is a slightly extended version of [Netlify's GoTrue](https://github.com/netlify/gotrue). It includes a `docker-compose.yaml` file to deploy it together with [Hasura](https://hasura.io/docs/1.0/graphql/core/index.html). This set up uses two databases, [PostgreSQL](https://www.postgresql.org/) for [Hasura](https://hasura.io/docs/1.0/graphql/core/index.html) and [MariaDB](https://mariadb.org/) for [GoTrue](https://github.com/netlify/gotrue). Have fun!
 
 ## Background
 
-Setting up Hasura is very easy. However, you immediately get disappointed that you don't get authentication out of the box. You have to read through a lot of tutorial blogs just to end up using paid options or Firebase.
+Setting up [Hasura](https://hasura.io/docs/1.0/graphql/core/index.html) is very easy. However, you immediately get disappointed that you don't get authentication out of the box. You have to read through a lot of tutorial blogs just to end up using paid options or Firebase.
 
-GoTrue is a simple yet solid authentication and user management tool. It is very light and straightforward. You can sign up users, verify them and also help them reset their passwords. The means of authentication is JWT, meaning that after signing up, a client sends a username and password to the system and they get an `access_token` and a `refresh_token`. This way, the client can be able to attach the token each time it makes a request.
+[GoTrue](https://github.com/netlify/gotrue) is a simple yet solid authentication and user management tool. It is very light and straightforward. You can sign up users, verify them and also help them reset their passwords. The means of authentication is JWT, meaning that after signing up, a client sends a username and password to the system and they get an `access_token` and a `refresh_token`. This way, the client can be able to attach the token each time it makes a request.
 
-Hasura is very a neat GraphQL engine built on top of PostgreSQL using Elixir. This gives you highly scalable GraphQL APIs that you can consume using web, mobile and desktop applications written in various programming languages. Hasura is nice in that it gives you room for multiple authentication and authorization options including JWT and WebHooks.
+[Hasura](https://hasura.io/docs/1.0/graphql/core/index.html) is very a neat GraphQL engine built on top of PostgreSQL using Elixir. This gives you highly scalable GraphQL APIs that you can consume using web, mobile and desktop applications written in various programming languages. Hasura is nice in that it gives you room for multiple authentication and authorization options including JWT and WebHooks.
 
 When you send a JWT to hasura in form of `Authorization: Bearer token`, Hasura engine checks the signature of the token using a preconfigured secret. Therefore, it doesn't have to send the token to the issuer from the server side to confirm its authenticity, Hasura simply checks the signature and, if it checks out, proceeds to authorize the request according to the claims available inside the token.
 
@@ -21,6 +21,105 @@ I also included the deployment file I use, this should work out of the box, but 
 ## Deployment
 
 Clone this repositoy, modify the `.env` file to include your preferred details for passwords, domain and smtp settings for emails then run `docker-compose up -d`.
+
+The `docker-compose.yaml` file looks like this:
+
+```yaml
+version: "3"
+
+services:
+  postgres:
+    image: postgres:12
+    restart: always
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: pgpassword
+
+  hasura:
+    image: hasura/graphql-engine:v1.3.3
+    ports:
+      - "5000:5000"
+    depends_on:
+      - "postgres"
+    restart: always
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:pgpassword@postgres:5432/postgres
+      ## enable the console served by server
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true" # set to "false" to disable console
+      ## enable debugging mode. It is recommended to disable this in production
+      HASURA_GRAPHQL_DEV_MODE: "true"
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: public
+      HASURA_GRAPHQL_SERVER_PORT: 5000
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
+      ## uncomment next line to set an admin secret
+      HASURA_GRAPHQL_ADMIN_SECRET: AdminSecretHere
+      HASURA_GRAPHQL_JWT_SECRET: '{"type": "HS256", "key": "changethismorethan32characterstring"}'
+
+  caddy:
+    image: abiosoft/caddy
+    depends_on:
+      - "web"
+    restart: always
+    environment:
+      ACME_AGREE: "true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/Caddyfile
+      - caddy_certs:/root/.caddy
+
+  db:
+    image: mariadb:10
+    restart: unless-stopped
+    env_file: .env
+    environment: 
+      MYSQL_ROOT_PASSWORD: dbpassword
+    volumes:
+      - mariadb:/var/lib/mysql
+    ports:
+      - 3306
+  gotrue:
+    build: gotrue
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - PORT=${GOTRUE_PORT}
+      - "DATABASE_URL=${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(db:3306)/${MYSQL_DATABASE}?parseTime=true&multiStatements=true"
+    ports:
+      - ${GOTRUE_PORT}:${GOTRUE_PORT}
+    depends_on:
+      - db
+
+volumes:
+  caddy_certs:
+  db_data:
+  mariadb:
+```
+
+The Caddy server `Caddyfile` looks like following:
+
+```Caddyfile
+hasura.example.com {
+  bind {$ADDRESS}
+  proxy / hasura:5000 {
+    transparent
+  }
+  tls email@example.com
+}
+
+gotrue.example.com {
+  bind {$ADDRESS}
+  proxy / gotrue:9999 {
+    transparent
+  }
+  tls email@example.com
+}
+
+```
+
+_Modify the `docker-compose.yaml` file and the `Caddyfile` to suite your set up.
 
 You will then need to manually run migrations inside the running `gotrue` container by doing:
 
